@@ -1,11 +1,49 @@
 #include <stdio.h>
+#include <iostream>
+#include <fstream>
+#include <unistd.h>
+
 #include <pcap.h>
+#include <json/json.h>
+
+using namespace std;
 
 void print_packet_info(const u_char *packet, struct pcap_pkthdr packet_header) {
     printf("Packet capture length: %d\n", packet_header.caplen);
     printf("Packet total length %d\n", packet_header.len);
 }
 
+void get_config()
+{
+    Json::Value root; 
+    string net_card_name;
+    int port_count = 0;
+    string server_addr;
+    int server_port = 0;
+
+    std::ifstream config_doc("config.json", std::ifstream::binary);
+    config_doc >> root;
+    net_card_name = root["LOCAL"]["NET_CARD_NAME"].asString();
+    
+    port_count = root["LOCAL"]["LOCAL_PROT"].size();
+    if( port_count <= 0)
+    {
+        printf("error\n");
+    }
+     printf("port:\n");
+    for( int i = 0; i < port_count; i++)
+    {
+        std::cout << root["LOCAL"]["LOCAL_PROT"][ i].asInt() <<endl;
+    }
+
+    server_addr = root["PIXEL"]["SERVER_ADDR"].asString();
+    server_port = root["PIXEL"]["SERVER_PORT"].asInt();
+
+    std::cout << net_card_name <<endl;
+
+    std::cout << server_addr <<endl;
+    std::cout << server_port <<endl;
+}
 
 void my_packet_handler(
     u_char *args,
@@ -23,6 +61,11 @@ void my_packet_handler(
 */
 
 int main(int argc, char **argv) {
+
+get_config();
+
+sleep(1);
+return 0;
     //char dev[] = "eth0";
     pcap_if_t *devs;
     pcap_t *handle;
