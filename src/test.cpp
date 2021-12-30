@@ -6,12 +6,50 @@
 #include <pcap.h>
 #include <json/json.h>
 
+#include "CPSocketUtils.h"
+
 using namespace std;
+
+static int m_tcpSocketFd = -1;
+static string m_serverIp;
 
 void print_packet_info(const u_char *packet, struct pcap_pkthdr packet_header) {
     printf("Packet capture length: %d\n", packet_header.caplen);
     printf("Packet total length %d\n", packet_header.len);
 }
+
+
+void my_packet_handler(
+    u_char *args,
+    const struct pcap_pkthdr *packet_header,
+    const u_char *packet_body
+)
+{
+    print_packet_info(packet_body, *packet_header);
+
+    int m_tcpSocketFd = 0;//TODO
+
+    if( m_tcpSocketFd >= 0)
+        {
+
+            #if 0
+            picLen += TIMESTAMP_LEN;//先发送长度值，长度值等于8字节时间戳长度+图片长度
+            sendData[ pos++] = ( picLen >> 24) & 0xFF;
+            sendData[ pos++] = ( picLen >> 16) & 0xFF;
+            sendData[ pos++] = ( picLen >> 8) & 0xFF;
+            sendData[ pos++] = ( picLen >> 0) & 0xFF;
+            #endif
+
+            int sendLen = CPSocketUtils::Send( m_tcpSocketFd, (char*)packet_body, packet_header->caplen);
+            if( sendLen != packet_header->caplen)
+            {
+                printf("send failed %d, sent %d\n", packet_header->caplen, sendLen);
+                CPSocketUtils::CloseSocket( m_tcpSocketFd);
+                m_tcpSocketFd = -1;
+            }
+        }
+}
+
 
 void get_config()
 {
@@ -45,27 +83,57 @@ void get_config()
     std::cout << server_port <<endl;
 }
 
-void my_packet_handler(
-    u_char *args,
-    const struct pcap_pkthdr *packet_header,
-    const u_char *packet_body
-)
+void InitTcp()
 {
-    print_packet_info(packet_body, *packet_header);
-    return;
+    if( m_tcpSocketFd >= 0)
+    {
+        return;
+    }
+	
+    char serverIp[ 16] ={ 0}; 
+
+    m_tcpSocketFd = CPSocketUtils::OpenTcpSocket();
+    if( m_tcpSocketFd < 0)
+    {
+        printf("socket open failed\n");
+        return;
+    }
+    
+    //TODO:动态获取域名
+    int ret = CPSocketUtils::GetIpFromDomain( serverIp, serverIp, sizeof( serverIp));
+    if( ret < 0)
+    {
+        printf("Domain to IP failed\n");
+        return ;
+    }
+    m_serverIp = serverIp;
+    printf("socket server is %s\n", m_serverIp.c_str());
+
+    //TODO:使用像素的服务器地址和端口号
+    ret = CPSocketUtils::ConnectTcpSocket( m_tcpSocketFd, "192", 192);
+    if( ret != 0)
+    {
+        printf("connect server [fd=%d] failed!!\n", m_tcpSocketFd); 
+        CPSocketUtils::CloseSocket( m_tcpSocketFd);
+        m_tcpSocketFd = -1;
+    }
+    else
+    {
+        printf("connect platform success, fd=%d\n",m_tcpSocketFd); 
+    }
 }
 
 /* For information on what filters are available
    use the man page for pcap-filter
    $ man pcap-filter
 */
-
 int main(int argc, char **argv) {
 
-get_config();
+    get_config();
 
-sleep(1);
-return 0;
+    sleep(1);
+    return 0;
+
     //char dev[] = "eth0";
     pcap_if_t *devs;
     pcap_t *handle;
