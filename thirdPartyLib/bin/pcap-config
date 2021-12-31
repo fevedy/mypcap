@@ -8,12 +8,12 @@
 # libdir may be defined in terms of prefix and exec_prefix, so the
 # latter must be defined as well.
 #
-prefix="/home/pixel/yszhang/tcpdump/libpcap-1.10.1/output"
+prefix="/root/forward_data/thirdPartyLib"
 exec_prefix="${prefix}"
 includedir="${prefix}/include"
 libdir="${exec_prefix}/lib"
 V_RPATH_OPT="-Wl,-rpath,"
-LIBS=" -ldbus-1"
+LIBS=""
 PACKAGE_NAME="pcap"
 
 static=0

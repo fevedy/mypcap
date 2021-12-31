@@ -100,7 +100,7 @@ func_find_prefixes ()
   done
 }
 if test "no" = yes; then
-  prefix="/home/pixel/yszhang/tcpdump/output"
+  prefix="/root/forward_data/thirdPartyLib"
   exec_prefix="${prefix}"
   bindir="${exec_prefix}/bin"
   orig_installdir="$bindir" # see Makefile.am's *_SCRIPTS variables
@@ -117,7 +117,7 @@ else
   }
 fi
 
-prefix=/home/pixel/yszhang/tcpdump/output
+prefix=/root/forward_data/thirdPartyLib
 exec_prefix=${prefix}
 bindir=`relocate "${exec_prefix}/bin"`
 exec "$bindir/bison" -y "$@"
