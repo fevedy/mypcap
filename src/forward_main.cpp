@@ -83,7 +83,6 @@ int get_config()
         exit(1);
     }
 
-    //TODO:这里是不是要拼凑起来过滤条件
     if( root["LOCAL"].isMember("LOCAL_PROT") && root["LOCAL"]["LOCAL_PROT"].isArray())
     {
         port_count = root["LOCAL"]["LOCAL_PROT"].size();
@@ -132,7 +131,6 @@ int get_config()
     std::cout << m_serDominName <<endl;
     std::cout << m_serverPort <<endl;
 
-    //TODO:拼接过滤器
     return 0;
 }
 
