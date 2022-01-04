@@ -8,6 +8,7 @@
 #include <json/json.h>
 
 #include "CPSocketUtils.h"
+#include "forward.h"
 
 using namespace std;
 
@@ -28,6 +29,9 @@ void print_packet_info(const u_char *packet, struct pcap_pkthdr packet_header)
 void my_packet_handler( u_char *args, const struct pcap_pkthdr *packet_header, const u_char *packet_body)
 {
     print_packet_info(packet_body, *packet_header);
+    
+    InitTcp();
+
     if( m_tcpSocketFd >= 0)
     {
         int sendLen = CPSocketUtils::Send( m_tcpSocketFd, (char*)packet_body, packet_header->caplen);
@@ -137,6 +141,7 @@ void InitTcp()
     }
 	
     char serverIp[ 16] ={ 0}; 
+    int ret = -1;
 
     m_tcpSocketFd = CPSocketUtils::OpenTcpSocket();
     if( m_tcpSocketFd < 0)
@@ -145,8 +150,12 @@ void InitTcp()
         return;
     }
     
-    //TODO:动态获取域名
-    int ret = CPSocketUtils::GetIpFromDomain( m_serDominName.c_str(), serverIp, sizeof( serverIp));
+    if( m_serDominName.empty())
+    {
+        printf("m_serDominName is null\n");
+        return ;
+    }
+    ret = CPSocketUtils::GetIpFromDomain( m_serDominName.c_str(), serverIp, sizeof( serverIp));
     if( ret < 0)
     {
         printf("Domain to IP failed\n");
@@ -155,7 +164,6 @@ void InitTcp()
     m_serverIp = serverIp;
     printf("socket server is %s\n", m_serverIp.c_str());
 
-    //TODO:使用像素的服务器地址和端口号
     ret = CPSocketUtils::ConnectTcpSocket( m_tcpSocketFd, m_serverIp.c_str(), m_serverPort);
     if( ret != 0)
     {
@@ -199,7 +207,7 @@ int main(int argc, char **argv)
     //后面网卡可以使用devs->name，或者devs[0].name
 #endif
 
-    if( m_netCardName.size() <= 0)
+    if( m_netCardName.empty())
     {
         printf("local net card name is empty\n");
         return 0;
