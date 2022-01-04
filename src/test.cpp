@@ -2,6 +2,7 @@
 #include <iostream>
 #include <fstream>
 #include <unistd.h>
+#include <unistd.h>
 
 #include <pcap.h>
 #include <json/json.h>
@@ -10,77 +11,122 @@
 
 using namespace std;
 
-static int m_tcpSocketFd = -1;
 static string m_serverIp;
+static string m_serDominName;
+static int m_serverPort = 0;
+static int m_tcpSocketFd = -1;
 
-void print_packet_info(const u_char *packet, struct pcap_pkthdr packet_header) {
+string m_netCardName;
+static char filterCmd[ 64] = { 0};
+
+void print_packet_info(const u_char *packet, struct pcap_pkthdr packet_header)
+{
     printf("Packet capture length: %d\n", packet_header.caplen);
     printf("Packet total length %d\n", packet_header.len);
 }
 
-
-void my_packet_handler(
-    u_char *args,
-    const struct pcap_pkthdr *packet_header,
-    const u_char *packet_body
-)
+void my_packet_handler( u_char *args, const struct pcap_pkthdr *packet_header, const u_char *packet_body)
 {
     print_packet_info(packet_body, *packet_header);
-
-    int m_tcpSocketFd = 0;//TODO
-
     if( m_tcpSocketFd >= 0)
+    {
+        int sendLen = CPSocketUtils::Send( m_tcpSocketFd, (char*)packet_body, packet_header->caplen);
+        if( sendLen != packet_header->caplen)
         {
-
-            #if 0
-            picLen += TIMESTAMP_LEN;//先发送长度值，长度值等于8字节时间戳长度+图片长度
-            sendData[ pos++] = ( picLen >> 24) & 0xFF;
-            sendData[ pos++] = ( picLen >> 16) & 0xFF;
-            sendData[ pos++] = ( picLen >> 8) & 0xFF;
-            sendData[ pos++] = ( picLen >> 0) & 0xFF;
-            #endif
-
-            int sendLen = CPSocketUtils::Send( m_tcpSocketFd, (char*)packet_body, packet_header->caplen);
-            if( sendLen != packet_header->caplen)
-            {
-                printf("send failed %d, sent %d\n", packet_header->caplen, sendLen);
-                CPSocketUtils::CloseSocket( m_tcpSocketFd);
-                m_tcpSocketFd = -1;
-            }
+            printf("send failed %d, sent %d\n", packet_header->caplen, sendLen);
+            CPSocketUtils::CloseSocket( m_tcpSocketFd);
+            m_tcpSocketFd = -1;
         }
+    }
 }
 
-
-void get_config()
+int get_config()
 {
     Json::Value root; 
-    string net_card_name;
     int port_count = 0;
-    string server_addr;
-    int server_port = 0;
+    int ret = -1;
+
+    ret = access("./config.json", F_OK);
+    if( ret < 0)
+    {
+        printf("config file is not exist\n");
+        exit(1);
+    }
+
+    ret = access("./config.json", R_OK);
+    if( ret < 0)
+    {
+        printf("config file cannot be read\n");
+        exit(1);
+    }
 
     std::ifstream config_doc("config.json", std::ifstream::binary);
     config_doc >> root;
-    net_card_name = root["LOCAL"]["NET_CARD_NAME"].asString();
-    
-    port_count = root["LOCAL"]["LOCAL_PROT"].size();
-    if( port_count <= 0)
+  
+    if( !root.isMember("LOCAL") ||!root.isMember("PIXEL"))
     {
-        printf("error\n");
-    }
-     printf("port:\n");
-    for( int i = 0; i < port_count; i++)
-    {
-        std::cout << root["LOCAL"]["LOCAL_PROT"][ i].asInt() <<endl;
+        printf("config has no LOCAL or PIXEL\n");
+        exit(1);
     }
 
-    server_addr = root["PIXEL"]["SERVER_ADDR"].asString();
-    server_port = root["PIXEL"]["SERVER_PORT"].asInt();
+    if( root["LOCAL"].isMember("NET_CARD_NAME") && root["LOCAL"]["NET_CARD_NAME"].isString())
+    {
+        m_netCardName = root["LOCAL"]["NET_CARD_NAME"].asString();
+    }
+    else
+    {
+        printf("config has no LOCAL NET_CARD_NAME\n");
+        exit(1);
+    }
 
-    std::cout << net_card_name <<endl;
+    //TODO:这里是不是要拼凑起来过滤条件
+    if( root["LOCAL"].isMember("LOCAL_PROT") && root["LOCAL"]["LOCAL_PROT"].isArray())
+    {
+        port_count = root["LOCAL"]["LOCAL_PROT"].size();
+        if( port_count <= 0)
+        {
+            printf("config LOCAL_PROT size is less than 1\n");
+            exit(1);
+        }
+        printf("port:\n");
+        for( int i = 0; i < port_count; i++)
+        {
+            std::cout << root["LOCAL"]["LOCAL_PROT"][ i].asInt() <<endl;
+        }
+    }
+    else
+    {
+        printf("config has no LOCAL LOCAL_PROT\n");
+        exit(1);
+    }
 
-    std::cout << server_addr <<endl;
-    std::cout << server_port <<endl;
+//SERVER info
+    if( root["PIXEL"].isMember("SERVER_ADDR") && root["PIXEL"]["SERVER_ADDR"].isString())
+    {
+        m_serDominName = root["PIXEL"]["SERVER_ADDR"].asString();
+    }
+    else
+    {
+        printf("config has no PIXEL SERVER_ADDR\n");
+        exit(1);
+    }
+
+    if( root["PIXEL"].isMember("SERVER_PORT") && root["PIXEL"]["SERVER_PORT"].isInt())
+    {
+        m_serverPort = root["PIXEL"]["SERVER_PORT"].asInt();    
+    }
+    else
+    {
+        printf("config has no PIXEL SERVER_PORT\n");
+        exit(1);
+    }
+
+    std::cout << m_netCardName <<endl;
+    std::cout << m_serDominName <<endl;
+    std::cout << m_serverPort <<endl;
+
+    //TODO:拼接过滤器
+    return 0;
 }
 
 void InitTcp()
@@ -100,7 +146,7 @@ void InitTcp()
     }
     
     //TODO:动态获取域名
-    int ret = CPSocketUtils::GetIpFromDomain( serverIp, serverIp, sizeof( serverIp));
+    int ret = CPSocketUtils::GetIpFromDomain( m_serDominName.c_str(), serverIp, sizeof( serverIp));
     if( ret < 0)
     {
         printf("Domain to IP failed\n");
@@ -110,7 +156,7 @@ void InitTcp()
     printf("socket server is %s\n", m_serverIp.c_str());
 
     //TODO:使用像素的服务器地址和端口号
-    ret = CPSocketUtils::ConnectTcpSocket( m_tcpSocketFd, "192", 192);
+    ret = CPSocketUtils::ConnectTcpSocket( m_tcpSocketFd, m_serverIp.c_str(), m_serverPort);
     if( ret != 0)
     {
         printf("connect server [fd=%d] failed!!\n", m_tcpSocketFd); 
@@ -127,17 +173,23 @@ void InitTcp()
    use the man page for pcap-filter
    $ man pcap-filter
 */
-int main(int argc, char **argv) {
+int main(int argc, char **argv)
+{
+    while( 1)
+    {
+        if( 0 == get_config())
+        {
+            break;
+        }
+        else
+        {
+            sleep( 1);
+        }
+    }
 
-    get_config();
-
-    sleep(1);
-    return 0;
-
-    //char dev[] = "eth0";
     pcap_if_t *devs;
     pcap_t *handle;
-    char error_buffer[PCAP_ERRBUF_SIZE];
+    char error_buffer[PCAP_ERRBUF_SIZE] = { 0};
     struct bpf_program filter;
     char filter_exp[] = "port 80";
     bpf_u_int32 subnet_mask, ip;
@@ -174,5 +226,7 @@ int main(int argc, char **argv) {
     /* pcap_next() or pcap_loop() to get packets from device now */
     /* Only packets over port 80 will be returned. */ 
     pcap_loop(handle, 0, my_packet_handler, NULL);
+    
+    pcap_close( handle);
     return 0;
 }
