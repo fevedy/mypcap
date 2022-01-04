@@ -18,7 +18,7 @@ static int m_serverPort = 0;
 static int m_tcpSocketFd = -1;
 
 string m_netCardName;
-static char filterCmd[ 64] = { 0};
+static char m_filter_exp[ 128] = { 0};
 
 void print_packet_info(const u_char *packet, struct pcap_pkthdr packet_header)
 {
@@ -49,7 +49,7 @@ int get_config()
     Json::Value root; 
     int port_count = 0;
     int ret = -1;
-
+    int pos = 0;
     ret = access("./config.json", F_OK);
     if( ret < 0)
     {
@@ -93,10 +93,13 @@ int get_config()
             exit(1);
         }
         printf("port:\n");
-        for( int i = 0; i < port_count; i++)
+        pos = snprintf( m_filter_exp, sizeof( m_filter_exp), "tcp and (dst port %d", root["LOCAL"]["LOCAL_PROT"][ 0].asInt());
+        for( int index = 1; index < port_count; index++)//index从1开始，index 0已经拼接完成
         {
-            std::cout << root["LOCAL"]["LOCAL_PROT"][ i].asInt() <<endl;
+            pos += snprintf( m_filter_exp + pos, sizeof( m_filter_exp) - pos, " or %d", root["LOCAL"]["LOCAL_PROT"][ index].asInt());
         }
+        snprintf( m_filter_exp + pos, sizeof( m_filter_exp) - pos, ")");
+        printf("cmd is %s\n", m_filter_exp);
     }
     else
     {
@@ -192,9 +195,7 @@ int main(int argc, char **argv)
     pcap_t *handle;
     char error_buffer[ PCAP_ERRBUF_SIZE] = { 0};
     struct bpf_program filter;
-    char filter_exp[] = "port 80";
     bpf_u_int32 subnet_mask, ip;
-
 
 #if 0
     //TODO:也许可以不配置，当配置文件中的网卡名为空时也可以动态获取
@@ -226,7 +227,7 @@ int main(int argc, char **argv)
         return 0;
     }
 
-    if ( pcap_compile( handle, &filter, filter_exp, 0, ip) == -1)
+    if ( pcap_compile( handle, &filter, m_filter_exp, 0, ip) == -1)
     {
         printf("Bad filter - %s\n", pcap_geterr( handle));
         return 0;

@@ -1,10 +1,10 @@
 {
     "LOCAL" : {
-	    "NET_CARD_NAME" : "eth0",
-	    "LOCAL_PROT" : [ 1, 2, 3]
+	    "NET_CARD_NAME" : "wlp0s20f3",
+	    "LOCAL_PROT" : [ 80, 81, 82]
     },
     "PIXEL" : {
-	    "SERVER_ADDR": "pixel-name", 
-	    "SERVER_PORT": 4
+	    "SERVER_ADDR": "192.168.60.126", 
+	    "SERVER_PORT": 7777
     }
 }
