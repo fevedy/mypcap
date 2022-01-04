@@ -169,63 +169,70 @@ void InitTcp()
     }
 }
 
-/* For information on what filters are available
-   use the man page for pcap-filter
-   $ man pcap-filter
-*/
 int main(int argc, char **argv)
 {
-    while( 1)
+    int ret = -1;
+
+    ret = get_config();
+    if( ret < 0)
     {
-        if( 0 == get_config())
-        {
-            break;
-        }
-        else
-        {
-            sleep( 1);
-        }
+        printf("get config error\n");
+        return 0;
     }
 
     pcap_if_t *devs;
     pcap_t *handle;
-    char error_buffer[PCAP_ERRBUF_SIZE] = { 0};
+    char error_buffer[ PCAP_ERRBUF_SIZE] = { 0};
     struct bpf_program filter;
     char filter_exp[] = "port 80";
     bpf_u_int32 subnet_mask, ip;
 
-    //device = pcap_lookupdev(error_buffer);
-    int ret = pcap_findalldevs(&devs, error_buffer);
-    if ( ret != 0) {
-        printf("Error finding device: %s\n", error_buffer);
-        return 1;
-    }
 
-    if (pcap_lookupnet(devs->name, &ip, &subnet_mask, error_buffer) == -1) {
-        printf("Could not get information for device: %s\n", devs->name);
+#if 0
+    //TODO:也许可以不配置，当配置文件中的网卡名为空时也可以动态获取
+    int ret = pcap_findalldevs( &devs, error_buffer);
+    if ( ret != 0)
+    {
+        printf("Error finding device: %s\n", error_buffer);
+        return 0;
+    }
+    //后面网卡可以使用devs->name，或者devs[0].name
+#endif
+
+    if( m_netCardName.size() <= 0)
+    {
+        printf("local net card name is empty\n");
+        return 0;
+    }
+    if (pcap_lookupnet( m_netCardName.c_str(), &ip, &subnet_mask, error_buffer) == -1)
+    {
+        printf("Could not get information for device: %s\n", m_netCardName.c_str());
         ip = 0;
         subnet_mask = 0;
     }
 
-    handle = pcap_open_live(devs->name, BUFSIZ, 1, 1000, error_buffer);
-    if (handle == NULL) {
-        printf("Could not open %s - %s\n", devs->name, error_buffer);
-        return 2;
+    handle = pcap_open_live( m_netCardName.c_str(), BUFSIZ, 1, 1000, error_buffer);
+    if ( handle == NULL)
+    {
+        printf("Could not open %s - %s\n", m_netCardName.c_str(), error_buffer);
+        return 0;
     }
 
-    if (pcap_compile(handle, &filter, filter_exp, 0, ip) == -1) {
-        printf("Bad filter - %s\n", pcap_geterr(handle));
-        return 2;
+    if ( pcap_compile( handle, &filter, filter_exp, 0, ip) == -1)
+    {
+        printf("Bad filter - %s\n", pcap_geterr( handle));
+        return 0;
     }
 
-    if (pcap_setfilter(handle, &filter) == -1) {
+    if (pcap_setfilter( handle, &filter) == -1)
+    {
         printf("Error setting filter - %s\n", pcap_geterr(handle));
-        return 2;
+        return 0;
     }
 
     /* pcap_next() or pcap_loop() to get packets from device now */
     /* Only packets over port 80 will be returned. */ 
-    pcap_loop(handle, 0, my_packet_handler, NULL);
+    pcap_loop( handle, 0, my_packet_handler, NULL);
     
     pcap_close( handle);
     return 0;
