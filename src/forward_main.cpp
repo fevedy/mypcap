@@ -91,7 +91,6 @@ int get_config()
             printf("config LOCAL_PROT size is less than 1\n");
             exit(1);
         }
-        printf("port:\n");
         pos = snprintf( m_filter_exp, sizeof( m_filter_exp), "tcp and (dst port %d", root["LOCAL"]["LOCAL_PROT"][ 0].asInt());
         for( int index = 1; index < port_count; index++)//index从1开始，index 0已经拼接完成
         {
@@ -127,10 +126,10 @@ int get_config()
         exit(1);
     }
 
-    std::cout << m_netCardName <<endl;
-    std::cout << m_serDominName <<endl;
-    std::cout << m_serverPort <<endl;
-
+    std::cout <<"locat network card card name :" << m_netCardName <<endl;
+    std::cout << "pixel server :" << m_serDominName <<endl;
+    std::cout << "pixel port :" << m_serverPort <<endl;
+    printf("filter cmd is : %s\n", m_filter_exp);
     return 0;
 }
 
