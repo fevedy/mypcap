@@ -1,6 +1,6 @@
 {
     "LOCAL" : {
-	    "NET_CARD_NAME" : "eth0",
+	    "NET_CARD_NAME" : "wlp0s20f3",
 	    "LOCAL_PROT" : [ 80, 81, 82]
     },
     "PIXEL" : {

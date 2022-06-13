@@ -1,0 +1,12 @@
+配置文件config.json说明：
+LOCAL：本地参数
+    NET_CARD_NAME：网卡名
+    LOCAL_PROT：需要抓包的端口号
+PIXEL：像素平台参数
+    SERVER_ADDR：服务器地址，可以域名，也可以是IP
+    SERVER_PORT:转发的目的端口号
+
+程序运行步骤：
+    1. source local.properties;//配置环境变量，也可以不使用这条命令，而把dependencies/bin/* dependencies/lib/* 拷贝到已经配置好的目录下
+    2. ./forward &; //因为要对网卡抓包，必须有root权限
+    

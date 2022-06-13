@@ -10,7 +10,7 @@
 
 #include <linux/if_packet.h>
 #include <linux/if_ether.h>
-#include <linux/if.h>
+//#include <linux/if.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <netinet/if_ether.h>

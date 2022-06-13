@@ -113,27 +113,6 @@ bool CPSocketUtils::ListenTcpSocket(int &handle, unsigned short port)
 	return false;
 }
 
-bool CPSocketUtils::ListenLinkSocket(int &handle, char* szInterface)
-{
-	struct sockaddr_ll addr_ll;
-
-	addr_ll.sll_family = AF_PACKET;
-	addr_ll.sll_protocol = htons(ETH_P_IP);
-
-	Getifindex(szInterface, &addr_ll.sll_ifindex);
-
-	printf("eth0 ifindex is %d", addr_ll.sll_ifindex);
-
-	if (::bind(handle, (struct sockaddr *) &addr_ll, sizeof(addr_ll)) < 0)
-	{
-		printf("bind call failed");
-		close(handle);
-		handle = -1;
-		return false;
-	}
-	return true;
-}
-
 void CPSocketUtils::CloseSocket(int &handle)
 {
     if(handle > 0)
@@ -466,54 +445,7 @@ int	CPSocketUtils::SetSockRecvTimeOut(
 
 }
 
-int	CPSocketUtils::BindSocketToDevice(
-									int handle,
-									const char* pDev)
-{
-	if(handle > 0)
-	{
-		struct ifreq	devInfo;
-		memset(&devInfo,0,sizeof(ifreq));
 
-		strcpy(devInfo.ifr_name, pDev);
-		int	setRet = setsockopt(handle, SOL_SOCKET, SO_BINDTODEVICE, (char*)&devInfo, sizeof(devInfo) );
-		return setRet;
-	}
-	return -1;
-}
-
-int CPSocketUtils::Getifindex(const char *interface, int *ifindex)
-{
-	int fd;
-	struct ifreq ifr;
-	//struct sockaddr_in *our_ip;
-
-	memset(&ifr, 0, sizeof(struct ifreq));
-	if ((fd = socket(AF_INET, SOCK_RAW, IPPROTO_RAW)) >= 0)
-	{
-		ifr.ifr_addr.sa_family = AF_INET;
-		strcpy(ifr.ifr_name, interface);
-
-		if (ioctl(fd, SIOCGIFINDEX, &ifr) == 0)
-		{
-			printf("adapter index %d", ifr.ifr_ifindex);
-			*ifindex = ifr.ifr_ifindex;
-		}
-		else
-		{
-			printf("SIOCGIFINDEX failed!");
-			close(fd);
-			return -1;
-		}
-
-	}
-	else
-	{
-		printf("socket failed!");
-		return -1;
-	}
-	return 0;
-}
 
 int	CPSocketUtils::SetSockNoDelay(int sockFd )
 {

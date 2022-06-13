@@ -28,7 +28,7 @@ void print_packet_info(const u_char *packet, struct pcap_pkthdr packet_header)
 
 void my_packet_handler( u_char *args, const struct pcap_pkthdr *packet_header, const u_char *packet_body)
 {
-    print_packet_info(packet_body, *packet_header);
+    //print_packet_info(packet_body, *packet_header);
     
     InitTcp();
 
@@ -91,7 +91,7 @@ int get_config()
             printf("config LOCAL_PROT size is less than 1\n");
             exit(1);
         }
-        pos = snprintf( m_filter_exp, sizeof( m_filter_exp), "tcp and (dst port %d", root["LOCAL"]["LOCAL_PROT"][ 0].asInt());
+        pos = snprintf( m_filter_exp, sizeof( m_filter_exp), "tcp and (dst port %d", root["LOCAL"]["LOCAL_PROT"][ 0u].asInt());
         for( int index = 1; index < port_count; index++)//index从1开始，index 0已经拼接完成
         {
             pos += snprintf( m_filter_exp + pos, sizeof( m_filter_exp) - pos, " or %d", root["LOCAL"]["LOCAL_PROT"][ index].asInt());
