@@ -113,18 +113,8 @@ public:
 
 	static int GetDesAddrbySocket(const int handle,struct sockaddr_in *desaddr);
 
-	static int GetSrcAddrbySocket(const int handle,struct sockaddr_in *srcaddr);
 
-	static int DelArpByIp(const char *desip, const char *dev);
-
-	static int SetArpByip(char *ip, char *mac, const char *dev);
     static int GetIpFromDomain( const char *pszDomain, char *pszIp, char pszIpLen);
-    
-public:
-
-	static int RecvPkg(int socket,struct sockaddr_in* from, char* szbuff,  int length,int timeUsec  = 1000000);
-
-	static int SendPkg(int socket,char *szbuff,int szSendbuflen,struct sockaddr_in* to,int timeUsec = 1000000);
 };
 
 #endif /* CPSOCKETUTILS_H_ */

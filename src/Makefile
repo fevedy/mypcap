@@ -7,15 +7,15 @@ CXXFLAGS := -Wall -g -std=c++0x
 
 
 INC_DIRS += $(PWD)
-INC_DIRS += /yszhang/thirdPartyLib/include
-INC_DIRS += /yszhang/src/SocketUtils
+INC_DIRS += $(PWD)/../thirdPartyLib/include
+INC_DIRS += $(PWD)/SocketUtils
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 CXXFLAGS += $(INC_FLAGS)
 
 srcfiles := $(shell find . -maxdepth 1 -name "*.cpp")
 objects  := $(patsubst %.cpp, %.o, $(srcfiles))
 
-LDFLAGS := -L/yszhang/thirdPartyLib/lib
+LDFLAGS := -L$(PWD)/../thirdPartyLib/lib
 
 #LDLIBS := -lfl
 #LDLIBS += -lfl_pic
