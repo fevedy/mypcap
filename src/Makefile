@@ -21,6 +21,7 @@ LDFLAGS := -L$(PWD)/../thirdPartyLib/lib
 #LDLIBS += -lfl_pic
 LDLIBS += -ljson_linux-gcc-4.4.7_libmt
 LDLIBS += -lpcap
+LDLIBS += -lpthread
 #LDLIBS += -ly
 
 all: $(appname)

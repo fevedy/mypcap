@@ -3,6 +3,7 @@
 #include <fstream>
 #include <unistd.h>
 #include <unistd.h>
+#include <csignal>
 
 #include <pcap.h>
 #include <json/json.h>
@@ -18,7 +19,8 @@ typedef struct tag_client_info
     time_t lastUpdataTime;
 }ClientInfo_T;
 
-typedef map< string, ClientInfo_T> Client_Map;
+typedef pair<string,unsigned short> Map_Key_Type;
+typedef map< Map_Key_Type, ClientInfo_T> Client_Map;
 typedef void *(*thread_entry_ptr_t)(void *);
 
 static string m_serverIp;
@@ -36,14 +38,27 @@ int Create_normal_thread(thread_entry_ptr_t entry, void *pPara, pthread_t *pPid,
 static void sleep_ms(unsigned const int millisecond);
 void *thread_entry( void * param);
 void print_packet_info(const u_char *packet, struct pcap_pkthdr packet_header);
-int get_tcp_fd( char* src_ip, int ip_len);
-int make_new_tcp_fd( char* src_ip, int ip_len);
-void del_tcp_fd( char* src_ip, int ip_len);
-void update_tcp_fd( char* src_ip, int ip_len);
+int get_tcp_fd( const Map_Key_Type& key);
+int make_new_tcp_fd( const Map_Key_Type& key);
+void del_tcp_fd( const Map_Key_Type& key);
+void update_tcp_fd( const Map_Key_Type& key);
 void update_fd_map();
-void payload_handler( char* src_ip, int ip_len, u_char* payload, int payload_len);
+void payload_handler( const Map_Key_Type& key, u_char* payload, int payload_len);
 void my_packet_handler( u_char *args, const struct pcap_pkthdr *packet_header, const u_char *packet);
 int init_tcp_fd();
+
+static void SignalHandler( int nSigno)
+{
+    switch(nSigno)
+    {
+        case SIGPIPE:
+            printf("Process will not exit\n");
+            break;
+        default:
+            printf("%d signal unregister\n", nSigno);
+            break;
+    }
+}
 
 //stacksize 单位为kb
 int Create_normal_thread(thread_entry_ptr_t entry, void *pPara, pthread_t *pPid, int stacksize)
@@ -54,7 +69,7 @@ int Create_normal_thread(thread_entry_ptr_t entry, void *pPara, pthread_t *pPid,
 	pthread_attr_init(&thread_attr);
 	pthread_attr_setscope(&thread_attr, PTHREAD_SCOPE_SYSTEM);
 	pthread_attr_setdetachstate(&thread_attr, PTHREAD_CREATE_DETACHED);
-    pthread_attr_setstacksize( &thread_attr, stacksize * 1024);
+        pthread_attr_setstacksize( &thread_attr, stacksize * 1024);
 	if(pthread_create(&thread_id, &thread_attr, entry, pPara) == 0)
 	{
 		pthread_attr_destroy(&thread_attr);
@@ -104,30 +119,30 @@ void print_packet_info(const u_char *packet, struct pcap_pkthdr packet_header)
     //printf("Packet total length %d\n", packet_header.len);
 }
 
-int get_tcp_fd( char* src_ip, int ip_len)
+int get_tcp_fd( const Map_Key_Type& key)
 {
     int tcp_fd = -1;
     Client_Map::iterator it;
     pthread_mutex_lock( &m_map_lock);  
-    it = m_client_map.find( src_ip);
+    it = m_client_map.find( key);
     if( it != m_client_map.end())
     {
         tcp_fd = ( *it).second.tcpfd;
         ( *it).second.lastUpdataTime = time( NULL);
-	//printf("zys::get: id %s, fd %d\n", src_ip, tcp_fd);
+	    //printf("get: id %s, fd %d\n", src_ip, tcp_fd);
         //这里为了减少搜索的次数，搜索出来后直接更新发送时间了
         pthread_mutex_unlock( &m_map_lock);  
     }
     else
     {
         pthread_mutex_unlock( &m_map_lock);  
-        tcp_fd = make_new_tcp_fd( src_ip, ip_len);
+        tcp_fd = make_new_tcp_fd( key);
     }
 
     return tcp_fd;
 }
 
-int make_new_tcp_fd( char* src_ip, int ip_len)
+int make_new_tcp_fd( const Map_Key_Type& key)
 {
     ClientInfo_T client;
     memset( &client, 0, sizeof( ClientInfo_T));
@@ -140,38 +155,37 @@ int make_new_tcp_fd( char* src_ip, int ip_len)
         client.tcpfd = tcp_fd;
         client.lastUpdataTime = time( NULL);
         pthread_mutex_lock( &m_map_lock);  
-        m_client_map.insert(std::make_pair( src_ip, client));
-	//printf("zys::make new: id %s, fd %d\n", src_ip, tcp_fd);
+        m_client_map.insert(std::make_pair( key, client));
+	    //printf("make new:  %s:%d, fd %d, time %d\n", key.first.c_str(), key.second, tcp_fd, client.lastUpdataTime);
         pthread_mutex_unlock( &m_map_lock);  
     }
 
     return tcp_fd;
 }
 
-void del_tcp_fd( char* src_ip, int ip_len)
+void del_tcp_fd( const Map_Key_Type& key)
 {
     Client_Map::iterator it;
     pthread_mutex_lock( &m_map_lock);  
-    it = m_client_map.find( src_ip);
+    it = m_client_map.find( key);
     if( it != m_client_map.end())
     {
+        //printf("del: ip %s, fd %d\n", key.first.c_str(), it->second.tcpfd);
         CPSocketUtils::CloseSocket( it->second.tcpfd);
-	//printf("zys::del: id %s, fd %d\n", src_ip, it->second.tcpfd);
         m_client_map.erase( it->first);
     }
     pthread_mutex_unlock( &m_map_lock);  
 }
 
-void update_tcp_fd( char* src_ip, int ip_len)
+void update_tcp_fd( const Map_Key_Type& key)
 {
     Client_Map::iterator it;
     pthread_mutex_lock( &m_map_lock);  
-    it = m_client_map.find( src_ip);
+    it = m_client_map.find( key);
     if( it != m_client_map.end())
     {
         ( *it).second.lastUpdataTime = time(NULL);
-	//printf("zys::update: id %s, fd %d\n", src_ip, it->second.tcpfd);
-
+	    //printf("update: ip %s, fd %d\n", src_ip, it->second.tcpfd);
     }
     pthread_mutex_unlock( &m_map_lock);  
 }
@@ -182,27 +196,28 @@ void update_fd_map()
     Client_Map::iterator it;
 
     pthread_mutex_lock( &m_map_lock);  
+    //printf("current client size is %lu\n", m_client_map.size());
     for( it = m_client_map.begin(); it != m_client_map.end(); ++it)
     {
         if( now_time - it->second.lastUpdataTime > 180)
         {
-	    //printf("zys::remove: id %s, fd %d\n", (it->first).c_str(), it->second.tcpfd);
+            //printf("remove: %s:%d, fd %d. %d-%d\n", it->first.first.c_str(), it->first.second, it->second.tcpfd, 
+            //it->second.lastUpdataTime, now_time);
             CPSocketUtils::CloseSocket( it->second.tcpfd);
             m_client_map.erase( it->first);
         }
 	else
         {
-	    //printf("zys::still alive: id %s, fd %d\n",(it->first).c_str(), it->second.tcpfd);
+	    //printf("still alive: id %s, fd %d\n",(it->first).c_str(), it->second.tcpfd);
 	}
     }
     pthread_mutex_unlock( &m_map_lock);  
 }
 
-void payload_handler( char* src_ip, int ip_len, u_char* payload, int payload_len)
+void payload_handler( const Map_Key_Type& key, u_char* payload, int payload_len)
 {
-    
     int tcp_fd = -1;
-    tcp_fd = get_tcp_fd( src_ip, ip_len);
+    tcp_fd = get_tcp_fd( key);
 
     if( tcp_fd >= 0)
     {
@@ -213,7 +228,7 @@ void payload_handler( char* src_ip, int ip_len, u_char* payload, int payload_len
         if( send_len != payload_len)
         {
             //printf("send failed %d, sent %d\n",payload_len, send_len);
-            del_tcp_fd( src_ip, ip_len);
+            del_tcp_fd( key);
         }
         else
         {
@@ -226,7 +241,6 @@ void payload_handler( char* src_ip, int ip_len, u_char* payload, int payload_len
 void my_packet_handler( u_char *args, const struct pcap_pkthdr *packet_header, const u_char *packet)
 {
     //print_packet_info(packet_body, *packet_header);
-    
     struct ether_header *eth_header;
     eth_header = (struct ether_header *)packet;
     if( ntohs( eth_header->ether_type) != ETHERTYPE_IP) 
@@ -236,16 +250,21 @@ void my_packet_handler( u_char *args, const struct pcap_pkthdr *packet_header, c
     }
 
     /* Pointers to start point of various headers */
-    const u_char *ip_header;
-    const u_char *tcp_header;
-    const u_char *payload;
-
+    const u_char *ip_header = NULL;
+    const u_char *tcp_header = NULL;
+    const u_char *payload = NULL;
+    
     /* Header lengths in bytes */
     int ethernet_header_length = 14; /* Doesn't change */
-    int ip_header_length;
-    int tcp_header_length;
-    int payload_length;
-    char source_ip[ 16] = { 0};
+    int ip_header_length = 0;
+    int tcp_header_length = 0;
+    int payload_length = 0;
+
+    Map_Key_Type key;
+    uint16_t netshort;
+    char ip[ 16] = { 0};
+    u_char rst = 0;
+    u_char fin = 0;
 
     /* Find start of IP header */
     ip_header = packet + ethernet_header_length;
@@ -266,19 +285,32 @@ void my_packet_handler( u_char *args, const struct pcap_pkthdr *packet_header, c
         return;
     }
 
-    snprintf( source_ip, sizeof( source_ip), "%d.%d.%d.%d", 
+    snprintf( ip, sizeof( ip), "%d.%d.%d.%d", 
             *(ip_header + 12), *(ip_header + 13), *(ip_header + 14), *(ip_header + 15));
+    key.first = ip;
     //假如源地址是服务器地址，直接丢了
-    if ( 0 == strncmp( source_ip, m_serverIp.c_str(), sizeof( source_ip))) 
+    if ( 0 == strncmp( key.first.c_str(), m_serverIp.c_str(), key.first.length())) 
     {
-        //printf("this is server to client, skipping\n");
+        //printf("this is server to client, skipping, ip:%s\n", key.first.c_str());
         return;
     }
 
     tcp_header = packet + ethernet_header_length + ip_header_length;
+    memcpy( &netshort, tcp_header, sizeof( netshort));
+    key.second = ntohs( netshort);
+    //printf("TCP header length in bytes: %d\n",key.second);
+
     tcp_header_length = ((*(tcp_header + 12)) & 0xF0) >> 4;
     tcp_header_length = tcp_header_length * 4;
-    //printf("TCP header length in bytes: %d\n", tcp_header_length);
+
+    //分析包的类型
+    rst = ((*(tcp_header + 13)) & 0x01);        //FIN
+    fin = ((*(tcp_header + 13)) & 0x04) >> 2;   //RST
+    if( 1 == rst || 1 == fin)
+    {
+        del_tcp_fd( key);
+        return ;
+    }
 
  /* Add up all the header sizes to find the payload offset */
     int total_headers_size = ethernet_header_length + ip_header_length + tcp_header_length;
@@ -292,8 +324,7 @@ void my_packet_handler( u_char *args, const struct pcap_pkthdr *packet_header, c
         //printf("zys::payload size is %d\n", payload_length);
         return ;
     }
-
-    payload_handler( source_ip, sizeof( source_ip), ( u_char*)payload, payload_length);
+    payload_handler( key, ( u_char*)payload, payload_length);
 }
 
 int get_config()
@@ -305,7 +336,7 @@ int get_config()
     ret = access("./config.json", F_OK);
     if( ret < 0)
     {
-        //printf("config file is not exist\n");
+        printf("config file is not exist\n");
         exit(1);
     }
 
@@ -431,6 +462,7 @@ int init_tcp_fd()
 int main(int argc, char **argv)
 {
     int ret = -1;
+    signal( SIGPIPE , &SignalHandler);
 
     pthread_mutex_init( &m_map_lock, NULL);
     pthread_mutex_init( &m_data_lock, NULL);
@@ -500,5 +532,6 @@ int main(int argc, char **argv)
     pcap_close( handle);
     pthread_mutex_destroy( &m_data_lock);
     pthread_mutex_destroy( &m_map_lock);
+    
     return 0;
 }
